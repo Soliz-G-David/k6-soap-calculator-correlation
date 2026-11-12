@@ -1,6 +1,16 @@
 import http from "k6/http";
+import { check } from "k6";
 import { BASE_URL, TEST_DATA } from "../config/config.js";
 import { buildEnvelope, buildHeaders, extractResult } from "../utils/soap.js";
+
+// Pass/fail rules for the whole test
+export const options = {
+  thresholds: {
+    http_req_failed: ["rate==0"], // no request is allowed to fail
+    http_req_duration: ["p(95)<1000"], // 95% of requests must answer in under 1 second
+    checks: ["rate==1"], // every check must pass
+  },
+};
 
 export default function () {
   // Step 1: send the first two numbers to Add
@@ -15,6 +25,13 @@ export default function () {
   console.log(
     `Add: ${intA} + ${intB} = ${addResult} (status ${addResponse.status})`,
   );
+
+  // Verify Add answered OK and the result is correct
+  const expectedAdd = intA + intB;
+  check(addResponse, {
+    "Add: status is 200": (r) => r.status === 200,
+    [`Add: result is ${expectedAdd}`]: () => Number(addResult) === expectedAdd,
+  });
 
   // Step 2: send the saved Add result to Multiply (not typed by hand)
   const multiplyBy = TEST_DATA.multiply.intB;
@@ -33,6 +50,14 @@ export default function () {
     `Multiply: ${addResult} x ${multiplyBy} = ${multiplyResult} (status ${multiplyResponse.status})`,
   );
 
+  // Verify Multiply answered OK and the result is correct
+  const expectedMultiply = expectedAdd * multiplyBy;
+  check(multiplyResponse, {
+    "Multiply: status is 200": (r) => r.status === 200,
+    [`Multiply: result is ${expectedMultiply}`]: () =>
+      Number(multiplyResult) === expectedMultiply,
+  });
+
   // Step 3: send the saved Multiply result to Subtract (not typed by hand)
   const subtractBy = TEST_DATA.subtract.intB;
   const subtractResponse = http.post(
@@ -46,7 +71,14 @@ export default function () {
 
   // Final result of the whole flow
   const subtractResult = extractResult(subtractResponse.body, "Subtract");
-  console.log(
-    `Subtract: ${multiplyResult} - ${subtractBy} = ${subtractResult} (status ${subtractResponse.status})`,
+  console.log(`Subtract: ${multiplyResult} - ${subtractBy} = ${subtractResult} (status ${subtractResponse.status})`,
   );
+
+  // Verify Subtract answered OK and the final result is correct
+  const expectedSubtract = expectedMultiply - subtractBy;
+  check(subtractResponse, {
+    "Subtract: status is 200": (r) => r.status === 200,
+    [`Subtract: result is ${expectedSubtract}`]: () =>
+      Number(subtractResult) === expectedSubtract,
+  });
 }
