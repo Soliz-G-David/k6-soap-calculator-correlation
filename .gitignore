@@ -1,0 +1,15 @@
+# k6 results and reports
+results/
+*.html
+summary.json
+
+# Node (in case we add tooling later)
+node_modules/
+
+# IDE / editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
